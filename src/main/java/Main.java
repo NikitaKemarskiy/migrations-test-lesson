@@ -7,6 +7,6 @@ public class Main {
         DataSource dataSource = new DBCPDataSource();
         Migrate migrate = new Migrate(dataSource);
 
-        migrate.run();
+        migrate.up();
     }
 }

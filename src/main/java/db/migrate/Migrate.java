@@ -37,7 +37,7 @@ public class Migrate {
         }
     }
 
-    public void run() {
+    public void up() {
         try {
             Connection connection = dataSource.getConnection();
 
@@ -66,6 +66,44 @@ public class Migrate {
                 upStatement.execute(upSQLScript);
 
                 PreparedStatement addMigrationStatement = connection.prepareStatement(QueryCollection.addMigration);
+                addMigrationStatement.setString(1, file.getName());
+                addMigrationStatement.execute();
+            }
+        } catch (IOException | SQLException err) {
+            System.err.println(err);
+            System.exit(1);
+        }
+    }
+
+    public void down() {
+        try {
+            Connection connection = dataSource.getConnection();
+
+            List<File> migrationDirectories = Arrays.stream(migrationsDirectory.listFiles())
+                    .filter(file -> {
+                        try {
+                            PreparedStatement statement = connection.prepareStatement(QueryCollection.getMigrationByName);
+                            statement.setString(1, file.getName());
+                            ResultSet resultSet = statement.executeQuery();
+                            return resultSet.next();
+                        } catch (SQLException err) {
+                            System.err.println(err);
+                            return false;
+                        }
+                    })
+                    .sorted(Comparator.comparing(File::getName).reversed())
+                    .collect(Collectors.toList());
+
+            for (File file : migrationDirectories) {
+                System.out.printf(">>> Downgrading migration: %s%n", file.getName());
+
+                Path downSQLScriptPath = Paths.get(file.getPath(), "down.sql");
+                String downSQLScript = String.join(" ", Files.readAllLines(downSQLScriptPath));
+
+                Statement upStatement = connection.createStatement();
+                upStatement.execute(downSQLScript);
+
+                PreparedStatement addMigrationStatement = connection.prepareStatement(QueryCollection.deleteMigration);
                 addMigrationStatement.setString(1, file.getName());
                 addMigrationStatement.execute();
             }
