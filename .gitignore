@@ -5,6 +5,8 @@
 
 .idea/
 target/
+log/*
+!log/.gitkeep
 
 config.properties
 

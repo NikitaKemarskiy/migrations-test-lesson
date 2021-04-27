@@ -10,4 +10,6 @@ public class QueryCollection {
 
     public final static String getUsersOrderById = "select * from users order by id";
     public final static String getUsersGroupByUsernameOrderByUsername = "select username from users group by username order by username;";
+
+    public final static String addPost = "insert into posts (image, caption, likes, userId) values (?, ?, ?, ?);";
 }

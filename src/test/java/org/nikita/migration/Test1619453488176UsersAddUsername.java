@@ -9,15 +9,27 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 import org.nikita.util.DatabaseUtil;
+import org.nikita.util.LoggerInconsistencyMatcher;
+import org.nikita.util.LoggerUtil;
 
+import java.io.IOException;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.sql.*;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.logging.Logger;
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public class Test1619453488176UsersAddUsername {
+    private final static String name = "1619453488176-users-add-username";
+    private final static String logDirectory = "log";
+
     private DataSource dataSource;
+    private LoggerUtil loggerUtil;
+    private Logger logger;
+    private Path logFilePath;
 
     private void addUser(String email, String password, Date birthday) throws SQLException {
         try (Connection connection = dataSource.getConnection()) {
@@ -40,7 +52,7 @@ public class Test1619453488176UsersAddUsername {
      * @throws SQLException
      */
     @BeforeAll
-    public void init() throws SQLException {
+    public void init() throws SQLException, IOException {
         dataSource = DBCPDataSource.getDataSource();
 
         DatabaseUtil databaseUtil = new DatabaseUtil(dataSource);
@@ -62,13 +74,18 @@ public class Test1619453488176UsersAddUsername {
             addUser("nikita@yandex.ru", "HASHED_PASSWORD", new Date(2001, 07, 24));
         }
 
+        loggerUtil = new LoggerUtil();
+        logFilePath = Paths.get(logDirectory, name + ".log");
+        logger = loggerUtil.initFileLogger(logFilePath.toAbsolutePath().toString(), name);
+
         Migrate migrate = new Migrate(dataSource);
-        String name = "1619453488176-users-add-username";
         migrate.up(name);
     }
 
     @Test
     public void testUsernameIsSuccessfullyAddedWithCorrectValue() throws SQLException {
+        loggerUtil.logRunningTest(logger, "testUsernameIsSuccessfullyAddedWithCorrectValue");
+
         List<String> usernames = new LinkedList<>();
         
         usernames.add("nikita");
@@ -78,20 +95,38 @@ public class Test1619453488176UsersAddUsername {
         usernames.add("nikita");
 
         Iterator<String> usernamesIterator = usernames.iterator();
-        
+        LoggerInconsistencyMatcher loggerInconsistencyMatcher = new LoggerInconsistencyMatcher(logger);
+
         try (Connection connection = dataSource.getConnection()) {
             Statement statement = connection.createStatement();
 
             ResultSet resultSet = statement.executeQuery(QueryCollection.getUsersOrderById);
 
             while (resultSet.next()) {
-                Assertions.assertEquals(resultSet.getString("username"), usernamesIterator.next());
+                String expected = usernamesIterator.next();
+                String actual = resultSet.getString("username");
+
+                if (expected.equals(actual)) {
+                    loggerInconsistencyMatcher.addMatch();
+                } else {
+                    loggerInconsistencyMatcher.addInconsistency(resultSet.getRow(), expected, actual);
+                }
             }
         }
+
+        loggerInconsistencyMatcher.log();
+
+        Assertions.assertEquals(
+                loggerInconsistencyMatcher.getInconsistencies(),
+                0,
+                String.format("Inconsistencies found. Explore logs at %s", logFilePath.toAbsolutePath().toString())
+        );
     }
 
     @Test
     public void testUsersAreGroupedByWithCorrectUsername() throws SQLException {
+        loggerUtil.logRunningTest(logger, "testUsersAreGroupedByWithCorrectUsername");
+
         List<String> usernames = new LinkedList<>();
 
         usernames.add("alexfilatov");
@@ -100,15 +135,30 @@ public class Test1619453488176UsersAddUsername {
         usernames.add("yaroslavobruch");
 
         Iterator<String> usernamesIterator = usernames.iterator();
+        LoggerInconsistencyMatcher loggerInconsistencyMatcher = new LoggerInconsistencyMatcher(logger);
 
         try (Connection connection = dataSource.getConnection()) {
             Statement statement = connection.createStatement();
-
             ResultSet resultSet = statement.executeQuery(QueryCollection.getUsersGroupByUsernameOrderByUsername);
 
             while (resultSet.next()) {
-                Assertions.assertEquals(resultSet.getString("username"), usernamesIterator.next());
+                String expected = usernamesIterator.next();
+                String actual = resultSet.getString("username");
+
+                if (expected.equals(actual)) {
+                    loggerInconsistencyMatcher.addMatch();
+                } else {
+                    loggerInconsistencyMatcher.addInconsistency(resultSet.getRow(), expected, actual);
+                }
             }
         }
+
+        loggerInconsistencyMatcher.log();
+
+        Assertions.assertEquals(
+            loggerInconsistencyMatcher.getInconsistencies(),
+        0,
+            String.format("Inconsistencies found. Explore logs at %s", logFilePath.toAbsolutePath().toString())
+        );
     }
 }
