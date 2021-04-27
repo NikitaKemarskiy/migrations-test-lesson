@@ -20,10 +20,9 @@ public class Migrate {
     private File migrationsDirectory;
 
     public Migrate(DataSource dataSource) {
-        try {
+        try (Connection connection = dataSource.getConnection()) {
             this.dataSource = dataSource;
 
-            Connection connection = dataSource.getConnection();
             Statement statement = connection.createStatement();
 
             statement.execute(QueryCollection.initMigrationsDatabase);
@@ -38,9 +37,7 @@ public class Migrate {
     }
 
     public void up() {
-        try {
-            Connection connection = dataSource.getConnection();
-
+        try (Connection connection = dataSource.getConnection()) {
             List<File> migrationDirectories = Arrays.stream(migrationsDirectory.listFiles())
                 .filter(file -> {
                     try {
@@ -75,10 +72,27 @@ public class Migrate {
         }
     }
 
-    public void down() {
-        try {
-            Connection connection = dataSource.getConnection();
+    public void up(String name) {
+        try (Connection connection = dataSource.getConnection()) {
+            System.out.printf(">>> Running migration: %s%n", name);
 
+            Path upSQLScriptPath = Paths.get(migrationsDirectory.getPath(), name, "up.sql");
+            String upSQLScript = String.join(" ", Files.readAllLines(upSQLScriptPath));
+
+            Statement upStatement = connection.createStatement();
+            upStatement.execute(upSQLScript);
+
+            PreparedStatement addMigrationStatement = connection.prepareStatement(QueryCollection.addMigration);
+            addMigrationStatement.setString(1, name);
+            addMigrationStatement.execute();
+        } catch (IOException | SQLException err) {
+            System.err.println(err);
+            System.exit(1);
+        }
+    }
+
+    public void down() {
+        try (Connection connection = dataSource.getConnection()) {
             List<File> migrationDirectories = Arrays.stream(migrationsDirectory.listFiles())
                     .filter(file -> {
                         try {

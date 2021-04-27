@@ -9,7 +9,11 @@ import java.sql.SQLException;
 public class DBCPDataSource implements DataSource {
     private BasicDataSource ds = new BasicDataSource();
 
-    public DBCPDataSource() {
+    public static DataSource getDataSource() {
+        return new DBCPDataSource();
+    }
+
+    private DBCPDataSource() {
         ds.setUrl(Config.getProperty("db.url"));
         ds.setUsername(Config.getProperty("db.username"));
         ds.setPassword("db.password");
@@ -17,6 +21,7 @@ public class DBCPDataSource implements DataSource {
         ds.setMaxIdle(10);
         ds.setMaxOpenPreparedStatements(100);
     }
+
 
     @Override
     public Connection getConnection() throws SQLException {

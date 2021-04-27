@@ -4,7 +4,7 @@ import db.migrate.Migrate;
 
 public class Main {
     public static void main(String[] args) {
-        DataSource dataSource = new DBCPDataSource();
+        DataSource dataSource = DBCPDataSource.getDataSource();
         Migrate migrate = new Migrate(dataSource);
 
         migrate.up();
